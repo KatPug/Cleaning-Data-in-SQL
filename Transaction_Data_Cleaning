@@ -1,0 +1,75 @@
+/*
+Cleaning Data in SQL
+*/
+
+-- Sample data
+CREATE TABLE raw_transactions (
+    transaction_id SERIAL PRIMARY KEY,
+    user_id INT,
+    transaction_amount DECIMAL(10, 2),
+    transaction_date DATE,
+    merchant_category VARCHAR(100),
+    suspicious_flag BOOLEAN
+);
+
+-- Insert sample data (including missing values and duplicates)
+INSERT INTO raw_transactions (user_id, transaction_amount, transaction_date, merchant_category, suspicious_flag) VALUES
+(1, 150.00, '2024-01-15', 'Groceries', FALSE),
+(2, 200.00, NULL, 'Electronics', NULL),  -- Missing date and suspicious flag
+(3, NULL, '2024-02-03', 'Restaurants', FALSE), -- Missing amount
+(4, 300.00, '2024-02-03', NULL, TRUE), -- Missing merchant category
+(4, 300.00, '2024-02-03', NULL, TRUE), -- Duplicate entry
+(5, 450.00, '2024-02-10', 'Travel', FALSE),
+(6, -500.00, '2024-02-12', 'Unknown', FALSE); -- Invalid amount
+
+-- Replace NULL transaction_date with current date
+UPDATE raw_transactions
+SET transaction_date = CURRENT_DATE
+WHERE transaction_date IS NULL;
+
+-- Replace NULL transaction_amount with 0
+UPDATE raw_transactions
+SET transaction_amount = 0
+WHERE transaction_amount IS NULL;
+
+-- Replace NULL merchant_category with 'Unknown'
+UPDATE raw_transactions
+SET merchant_category = 'Unknown'
+WHERE merchant_category IS NULL;
+
+-- Replace NULL suspicious_flag with FALSE
+UPDATE raw_transactions
+SET suspicious_flag = FALSE
+WHERE suspicious_flag IS NULL;
+
+-- Remove duplicates based on user_id, transaction_amount, and transaction_date
+DELETE FROM raw_transactions
+WHERE transaction_id IN (
+    SELECT transaction_id
+    FROM (
+        SELECT transaction_id, 
+               ROW_NUMBER() OVER (PARTITION BY user_id, transaction_amount, transaction_date ORDER BY transaction_id) AS rn
+        FROM raw_transactions
+    ) t
+    WHERE t.rn > 1
+);
+
+-- Correct invalid transaction amounts (if business logic allows)
+ DELETE FROM raw_transactions WHERE transaction_amount < 0;
+
+-- Convert merchant_category to lowercase for consistency
+UPDATE raw_transactions
+SET merchant_category = LOWER(merchant_category);
+
+-- Standardize categories
+UPDATE raw_transactions
+SET merchant_category = 'groceries'
+WHERE merchant_category IN ('grocry', 'grocery');
+
+UPDATE raw_transactions
+SET merchant_category = 'electronics'
+WHERE merchant_category IN ('electrncs', 'electronics', 'elctronics');
+
+-- Creating a new clean_transactions table
+CREATE TABLE clean_transactions AS
+SELECT * FROM raw_transactions;
